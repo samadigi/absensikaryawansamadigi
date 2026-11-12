@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SmartAttend QR — Sistem Absensi Karyawan</title>
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+  <!-- PWA Manifest via Data URI -->
+  <link rel="manifest" href='data:application/manifest+json,{
+    "name": "SmartAttend QR Absensi",
+    "short_name": "SmartAttend",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2563eb",
+    "description": "Aplikasi Absensi Karyawan Berbasis Scan Kamera QR Code",
+    "icons": [
+      {
+        "src": "data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 192 192%27%3E%3Crect width=%27192%27 height=%27192%27 rx=%2740%27 fill=%27%232563eb%27/%3E%3Cpath d=%27M52 52h32v32H52zm56 0h32v32h-32zM52 108h32v32H52zm56 16h16v16h-16zm16-16h16v16h-16zm-16 0h16v16h-16z%27 fill=%27%23ffffff%27/%3E%3C/svg%3E",
+        "sizes": "192x192",
+        "type": "image/svg+xml"
+      }
+    ]
+  }' />
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- HTML5-QRCode Library untuk Scan Kamera Real-time -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- QRCode.js untuk Generate QR Code Dinamis -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    /* Full Page Override agar menutupi elemen bawaan Blogger secara utuh */
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      color: #0f172a;
+      overflow-x: hidden;
+    }
+
+    #smartattend-root {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism Utilities */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.06);
+    }
+
+    .glass-nav {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-color: rgba(226, 232, 240, 0.9);
+    }
+
+    /* Responsive Layout: Desktop Sidebar vs Mobile Bottom Nav */
+    @media (min-width: 768px) {
+      .desktop-sidebar {
+        display: flex;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 268px;
+        flex-direction: column;
+        z-index: 40;
+      }
+      .mobile-bottom-nav {
+        display: none !important;
+      }
+      .main-workspace {
+        margin-left: 268px;
+        padding-bottom: 2rem;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .desktop-sidebar {
+        display: none !important;
+      }
+      .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        z-index: 50;
+        border-radius: 20px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+      }
+      .main-workspace {
+        margin-left: 0;
+        padding-bottom: 6.5rem;
+      }
+    }
+
+    /* Styling Scanner Area */
+    #qr-reader {
+      border: none !important;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    #qr-reader video {
+      border-radius: 16px;
+      object-fit: cover !important;
+    }
+    #qr-reader__scan_region img {
+      display: none !important;
+    }
+    #qr-reader__dashboard_section_csr button,
+    #qr-reader__dashboard_section_swaplink {
+      background: #2563eb !important;
+      color: #ffffff !important;
+      border: none !important;
+      padding: 8px 16px !important;
+      border-radius: 10px !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      margin: 6px 4px !important;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div id="smartattend-root">
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Custom Modal Container (Pengganti alert/confirm) -->
+    <div id="custom-modal-backdrop" class="hidden fixed inset-0 z-[999998] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div id="custom-modal-box" class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+        <!-- Konten modal dirender dinamis -->
+      </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="app-container" class="min-h-screen w-full"></div>
+  </div>
+
+  <!-- Firebase & Application Logic -->
+  <script type="module">
+    // =========================================================================
+    // KONFIGURASI APLIKASI
+    // =========================================================================
+    const IS_PREVIEW = false; // Ubah menjadi false SAAT DEPLOY / PUBLISH agar terhubung murni ke Firebase tanpa data dummy
+
+    // PASTE FIREBASE CONFIG ANDA DI SINI
+    const firebaseConfig = {
+       apiKey: "AIzaSyBEOqdpTFnIVk46OXmT3_zsscRuSjk7tZU",
+  authDomain: "absensikamera-7977a.firebaseapp.com",
+  projectId: "absensikamera-7977a",
+  storageBucket: "absensikamera-7977a.firebasestorage.app",
+  messagingSenderId: "1049128772312",
+  appId: "1:1049128772312:web:ad2b16d90b78e044956dad"
+    };
+
+    // =========================================================================
+    // IMPORT FIREBASE SDK (v11.6.1)
+    // =========================================================================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      addDoc,
+      updateDoc,
+      deleteDoc,
+      query,
+      where,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // =========================================================================
+    // REGISTRASI SERVICE WORKER (PWA 1 FILE VIA BLOB)
+    // =========================================================================
+    function registerInlineServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        const swCode = `
+          const CACHE_NAME = 'smartattend-qr-v1';
+          self.addEventListener('install', (event) => {
+            self.skipWaiting();
+          });
+          self.addEventListener('activate', (event) => {
+            event.waitUntil(clients.claim());
+          });
+          self.addEventListener('fetch', (event) => {
+            event.respondWith(
+              fetch(event.request).catch(() => new Response('Offline mode aktif.'))
+            );
+          });
+        `;
+        try {
+          const blob = new Blob([swCode], { type: 'application/javascript' });
+          const swUrl = URL.createObjectURL(blob);
+          navigator.serviceWorker.register(swUrl).catch(() => {});
+        } catch (err) {
+          // Abaikan jika lingkungan iframe membatasi SW
+        }
+      }
+    }
+    registerInlineServiceWorker();
+
+    // =========================================================================
+    // INISIALISASI FIREBASE (HANYA AKTIF JIKA IS_PREVIEW === false)
+    // =========================================================================
+    let app = null;
+    let auth = null;
+    let db = null;
+
+    if (!IS_PREVIEW) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+      } catch (error) {
+        console.error("Kesalahan inisialisasi Firebase:", error);
+      }
+    }
+
+    // =========================================================================
+    // HELPER TANGGAL & WAKTU
+    // =========================================================================
+    function getTodayDateString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getCurrentTimeString() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function calculateDuration(clockIn, clockOut) {
+      if (!clockIn || !clockOut || clockOut === '-') return '-';
+      const [h1, m1, s1 = 0] = clockIn.split(':').map(Number);
+      const [h2, m2, s2 = 0] = clockOut.split(':').map(Number);
+      const totalSec = (h2 * 3600 + m2 * 60 + s2) - (h1 * 3600 + m1 * 60 + s1);
+      if (totalSec <= 0) return '0j 0m';
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      return `${hrs}j ${mins}m`;
+    }
+
+    // =========================================================================
+    // STATE APLIKASI (STRICT DUAL-MODE)
+    // =========================================================================
+    const state = {
+      currentUser: null, // { role: 'admin' | 'employee', uid?, empId?, name, department? }
+      loginTab: 'employee', // 'employee' | 'admin'
+      activeMenu: 'scan', // Employee: 'scan' | 'history' | 'profile' || Admin: 'dashboard' | 'employees' | 'reports' | 'settings'
+      scanMode: 'in', // 'in' | 'out'
+      isScanning: false,
+      scannerInstance: null,
+      loading: false,
+
+      // Koleksi Data (In-Memory saat IS_PREVIEW = true, Firestore saat IS_PREVIEW = false)
+      employees: IS_PREVIEW ? [
+        {
+          id: 'doc-emp-1',
+          empId: 'EMP-001',
+          name: 'Budi Santoso',
+          department: 'Operasional & IT',
+          password: '123',
+          status: 'active'
+        },
+        {
+          id: 'doc-emp-2',
+          empId: 'EMP-002',
+          name: 'Siti Aminah',
+          department: 'Keuangan & HR',
+          password: '123',
+          status: 'active'
+        }
+      ] : [],
+
+      attendances: IS_PREVIEW ? [
+        {
+          id: 'att-1',
+          empId: 'EMP-001',
+          empName: 'Budi Santoso',
+          department: 'Operasional & IT',
+          date: getTodayDateString(),
+          clockIn: '07:52:10',
+          clockOut: '-',
+          status: 'Tepat Waktu',
+          scanToken: 'OFFICE-MAIN-2026'
+        },
+        {
+          id: 'att-2',
+          empId: 'EMP-002',
+          empName: 'Siti Aminah',
+          department: 'Keuangan & HR',
+          date: getTodayDateString(),
+          clockIn: '08:14:05',
+          clockOut: '-',
+          status: 'Terlambat',
+          scanToken: 'OFFICE-MAIN-2026'
+        }
+      ] : [],
+
+      settings: IS_PREVIEW ? {
+        startTime: '08:00',
+        endTime: '17:00',
+        officeQrCode: 'OFFICE-MAIN-2026'
+      } : {
+        startTime: '08:00',
+        endTime: '17:00',
+        officeQrCode: 'OFFICE-MAIN-QR'
+      },
+
+      // Filter UI
+      filterDate: getTodayDateString(),
+      filterSearch: '',
+      historyMonth: getTodayDateString().slice(0, 7)
+    };
+
+    // =========================================================================
+    // UI FEEDBACK (TOAST & CUSTOM MODAL - TANPA ALERT/CONFIRM)
+    // =========================================================================
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        error: 'bg-rose-600 text-white border-rose-500',
+        warning: 'bg-amber-500 text-white border-amber-400',
+        info: 'bg-slate-800 text-white border-slate-700'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 transform translate-y-0 opacity-100 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <span class="flex-1">${message}</span>
+        <button class="text-white/80 hover:text-white font-bold text-base leading-none" onclick="this.parentElement.remove()">&times;</button>
+      `;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3800);
+    }
+
+    function openModal(htmlContent) {
+      const backdrop = document.getElementById('custom-modal-backdrop');
+      const box = document.getElementById('custom-modal-box');
+      box.innerHTML = htmlContent;
+      backdrop.classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    window.closeModal = function () {
+      const backdrop = document.getElementById('custom-modal-backdrop');
+      backdrop.classList.add('hidden');
+    };
+
+    // =========================================================================
+    // OPERASI DATA FIRESTORE (AKTIF SAAT IS_PREVIEW === false)
+    // =========================================================================
+    async function loadFirestoreData() {
+      if (IS_PREVIEW || !db) return;
+      state.loading = true;
+      renderApp();
+
+      try {
+        // 1. Load Settings
+        const settingsRef = doc(db, 'settings', 'work_schedule');
+        const settingsSnap = await getDoc(settingsRef);
+        if (settingsSnap.exists()) {
+          state.settings = { ...state.settings, ...settingsSnap.data() };
+        }
+
+        // 2. Load Employees (Admin butuh semua, Karyawan sudah tervalidasi saat login)
+        if (state.currentUser?.role === 'admin') {
+          const empSnap = await getDocs(collection(db, 'employees'));
+          state.employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          const attSnap = await getDocs(collection(db, 'attendances'));
+          state.attendances = attSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } else if (state.currentUser?.role === 'employee') {
+          const qAtt = query(
+            collection(db, 'attendances'),
+            where('empId', '==', state.currentUser.empId)
+          );
+          const attSnap = await getDocs(qAtt);
+          state.attendances = attSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+      } catch (err) {
+        console.error('Gagal memuat data Firestore:', err);
+        showToast('Gagal memuat data dari server: ' + err.message, 'error');
+      } finally {
+        state.loading = false;
+        renderApp();
+      }
+    }
+
+    // =========================================================================
+    // SISTEM AUTENTIKASI HYBRID
+    // =========================================================================
+    async function handleAdminLogin(email, password) {
+      if (!email || !password) {
+        showToast('Email dan password Admin wajib diisi.', 'warning');
+        return;
+      }
+
+      if (IS_PREVIEW) {
+        state.currentUser = {
+          role: 'admin',
+          uid: 'preview-admin-uid',
+          name: 'Administrator HRD',
+          email: email
+        };
+        state.activeMenu = 'dashboard';
+        showToast('Berhasil masuk sebagai Admin (Mode Preview).', 'success');
+        renderApp();
+        return;
+      }
+
+      // Mode Produksi: Firebase Authentication
+      try {
+        state.loading = true;
+        renderApp();
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        state.currentUser = {
+          role: 'admin',
+          uid: cred.user.uid,
+          name: cred.user.email.split('@')[0],
+          email: cred.user.email
+        };
+        state.activeMenu = 'dashboard';
+        showToast('Login Admin berhasil.', 'success');
+        await loadFirestoreData();
+      } catch (err) {
+        state.loading = false;
+        showToast('Login Admin gagal: Email atau password salah.', 'error');
+        renderApp();
+      }
+    }
+
+    async function handleEmployeeLogin(empIdInput, passwordInput) {
+      const empId = empIdInput.trim().toUpperCase();
+      const password = passwordInput.trim();
+
+      if (!empId || !password) {
+        showToast('ID Karyawan dan Password wajib diisi.', 'warning');
+        return;
+      }
+
+      if (IS_PREVIEW) {
+        const found = state.employees.find(
+          e => e.empId.toUpperCase() === empId && e.password === password
+        );
+        if (!found) {
+          showToast('ID Karyawan atau Password tidak cocok (Mode Preview).', 'error');
+          return;
+        }
+        if (found.status !== 'active') {
+          showToast('Akun karyawan ini sedang dinonaktifkan.', 'error');
+          return;
+        }
+        state.currentUser = {
+          role: 'employee',
+          id: found.id,
+          empId: found.empId,
+          name: found.name,
+          department: found.department
+        };
+        state.activeMenu = 'scan';
+        showToast(`Selamat datang, ${found.name}!`, 'success');
+        renderApp();
+        return;
+      }
+
+      // Mode Produksi: Validasi langsung terhadap koleksi 'employees' di Firestore
+      try {
+        state.loading = true;
+        renderApp();
+        const q = query(collection(db, 'employees'), where('empId', '==', empId));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          state.loading = false;
+          showToast('ID Karyawan tidak ditemukan di sistem.', 'error');
+          renderApp();
+          return;
+        }
+
+        const empDoc = snap.docs[0];
+        const empData = empDoc.data();
+
+        if (empData.password !== password) {
+          state.loading = false;
+          showToast('Password karyawan salah.', 'error');
+          renderApp();
+          return;
+        }
+
+        if (empData.status !== 'active') {
+          state.loading = false;
+          showToast('Akun Anda berstatus non-aktif. Hubungi HRD/Admin.', 'error');
+          renderApp();
+          return;
+        }
+
+        state.currentUser = {
+          role: 'employee',
+          id: empDoc.id,
+          empId: empData.empId,
+          name: empData.name,
+          department: empData.department
+        };
+        state.activeMenu = 'scan';
+        showToast(`Selamat datang, ${empData.name}!`, 'success');
+        await loadFirestoreData();
+      } catch (err) {
+        state.loading = false;
+        showToast('Terjadi kesalahan saat verifikasi akun: ' + err.message, 'error');
+        renderApp();
+      }
+    }
+
+    async function handleLogout() {
+      await stopCameraScanner();
+      if (!IS_PREVIEW && state.currentUser?.role === 'admin' && auth) {
+        try {
+          await signOut(auth);
+        } catch (e) {}
+      }
+      state.currentUser = null;
+      if (!IS_PREVIEW) {
+        state.employees = [];
+        state.attendances = [];
+      }
+      showToast('Anda telah keluar dari sistem.', 'info');
+      renderApp();
+    }
+
+    // =========================================================================
+    // LOGIKA SCAN KAMERA & PENCATATAN ABSENSI
+    // =========================================================================
+    async function stopCameraScanner() {
+      if (state.scannerInstance) {
+        try {
+          if (state.isScanning) {
+            await state.scannerInstance.stop();
+          }
+          state.scannerInstance.clear();
+        } catch (e) {
+          // Abaikan error saat kamera sudah berhenti
+        }
+        state.scannerInstance = null;
+      }
+      state.isScanning = false;
+    }
+
+    async function startCameraScanner() {
+      const readerEl = document.getElementById('qr-reader');
+      if (!readerEl) return;
+
+      await stopCameraScanner();
+
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        state.scannerInstance = html5QrCode;
+        state.isScanning = true;
+        updateScannerButtons();
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 230, height: 230 }
+          },
+          async (decodedText) => {
+            await stopCameraScanner();
+            updateScannerButtons();
+            await processQrScanResult(decodedText.trim());
+          },
+          () => {
+            // Frame scanning error normal diabaikan
+          }
+        );
+      } catch (err) {
+        state.isScanning = false;
+        updateScannerButtons();
+        showToast('Kamera tidak dapat diakses. Pastikan izin kamera aktif atau gunakan tombol Simulasi/Input Kode QR.', 'warning');
+      }
+    }
+
+    function updateScannerButtons() {
+      const btnStart = document.getElementById('btn-start-scan');
+      const btnStop = document.getElementById('btn-stop-scan');
+      if (btnStart && btnStop) {
+        btnStart.classList.toggle('hidden', state.isScanning);
+        btnStop.classList.toggle('hidden', !state.isScanning);
+      }
+    }
+
+    async function processQrScanResult(scannedCode) {
+      if (!state.currentUser || state.currentUser.role !== 'employee') return;
+
+      // Validasi QR Code Kantor atau QR ID Karyawan sendiri
+      const validOfficeCode = state.settings.officeQrCode;
+      const validPersonalCode = state.currentUser.empId;
+
+      if (scannedCode !== validOfficeCode && scannedCode !== validPersonalCode) {
+        showToast(`QR Code tidak valid ("${scannedCode}"). Pindai QR Resmi Kantor!`, 'error');
+        return;
+      }
+
+      const today = getTodayDateString();
+      const nowTime = getCurrentTimeString();
+      const empId = state.currentUser.empId;
+
+      // Cek apakah sudah ada record hari ini
+      const existingRecord = state.attendances.find(
+        a => a.empId === empId && a.date === today
+      );
+
+      if (state.scanMode === 'in') {
+        if (existingRecord) {
+          showToast(`Anda sudah melakukan Absen Masuk hari ini pada pukul ${existingRecord.clockIn}.`, 'warning');
+          return;
+        }
+
+        // Tentukan status Tepat Waktu vs Terlambat
+        const [startH, startM] = state.settings.startTime.split(':').map(Number);
+        const [curH, curM] = nowTime.split(':').map(Number);
+        const isLate = (curH > startH) || (curH === startH && curM > startM);
+        const statusLabel = isLate ? 'Terlambat' : 'Tepat Waktu';
+
+        const newRecord = {
+          empId: empId,
+          empName: state.currentUser.name,
+          department: state.currentUser.department,
+          date: today,
+          clockIn: nowTime,
+          clockOut: '-',
+          status: statusLabel,
+          scanToken: scannedCode
+        };
+
+        if (IS_PREVIEW) {
+          newRecord.id = 'att-' + Date.now();
+          state.attendances.unshift(newRecord);
+          showToast(`Absen Masuk berhasil (${nowTime}) — Status: ${statusLabel}`, 'success');
+          renderApp();
+        } else {
+          try {
+            const docRef = await addDoc(collection(db, 'attendances'), {
+              ...newRecord,
+              timestamp: serverTimestamp()
+            });
+            newRecord.id = docRef.id;
+            state.attendances.unshift(newRecord);
+            showToast(`Absen Masuk tercatat di server (${nowTime}) — ${statusLabel}`, 'success');
+            renderApp();
+          } catch (err) {
+            showToast('Gagal menyimpan Absen Masuk: ' + err.message, 'error');
+          }
+        }
+      } else if (state.scanMode === 'out') {
+        if (!existingRecord) {
+          showToast('Anda belum melakukan Absen Masuk hari ini. Silakan Absen Masuk terlebih dahulu.', 'warning');
+          return;
+        }
+        if (existingRecord.clockOut && existingRecord.clockOut !== '-') {
+          showToast(`Anda sudah melakukan Absen Pulang hari ini pada pukul ${existingRecord.clockOut}.`, 'warning');
+          return;
+        }
+
+        if (IS_PREVIEW) {
+          existingRecord.clockOut = nowTime;
+          showToast(`Absen Pulang berhasil dicatat pada pukul ${nowTime}.`, 'success');
+          renderApp();
+        } else {
+          try {
+            const attRef = doc(db, 'attendances', existingRecord.id);
+            await updateDoc(attRef, { clockOut: nowTime });
+            existingRecord.clockOut = nowTime;
+            showToast(`Absen Pulang berhasil dicatat (${nowTime}).`, 'success');
+            renderApp();
+          } catch (err) {
+            showToast('Gagal menyimpan Absen Pulang: ' + err.message, 'error');
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // CRUD KARYAWAN & PENGATURAN (ADMIN)
+    // =========================================================================
+    window.openEmployeeFormModal = function (editId = null) {
+      const emp = editId ? state.employees.find(e => e.id === editId) : null;
+      openModal(`
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-800">${emp ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}</h3>
+          <button onclick="closeModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <form id="employee-form" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">ID Karyawan (NIP / Username)</label>
+            <input type="text" id="emp-form-id" value="${emp ? emp.empId : ''}" ${emp ? 'readonly class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 text-sm"' : 'required placeholder="Contoh: EMP-003" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase"'} />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Lengkap</label>
+            <input type="text" id="emp-form-name" required value="${emp ? emp.name : ''}" placeholder="Nama lengkap karyawan" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Divisi / Jabatan</label>
+            <input type="text" id="emp-form-dept" required value="${emp ? emp.department : ''}" placeholder="Contoh: Marketing / IT / Gudang" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password / PIN Login</label>
+            <input type="text" id="emp-form-pass" required value="${emp ? emp.password : ''}" placeholder="PIN atau password masuk" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Status Akun</label>
+            <select id="emp-form-status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+              <option value="active" ${!emp || emp.status === 'active' ? 'selected' : ''}>Aktif</option>
+              <option value="inactive" ${emp && emp.status === 'inactive' ? 'selected' : ''}>Non-Aktif</option>
+            </select>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="closeModal()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+            <button type="submit" class="px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm">Simpan Data</button>
+          </div>
+        </form>
+      `);
+
+      document.getElementById('employee-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empId = document.getElementById('emp-form-id').value.trim().toUpperCase();
+        const name = document.getElementById('emp-form-name').value.trim();
+        const department = document.getElementById('emp-form-dept').value.trim();
+        const password = document.getElementById('emp-form-pass').value.trim();
+        const status = document.getElementById('emp-form-status').value;
+
+        if (!emp) {
+          const duplicate = state.employees.some(item => item.empId.toUpperCase() === empId);
+          if (duplicate) {
+            showToast(`ID Karyawan ${empId} sudah terdaftar!`, 'error');
+            return;
+          }
+        }
+
+        if (IS_PREVIEW) {
+          if (emp) {
+            Object.assign(emp, { name, department, password, status });
+            showToast('Data karyawan diperbarui (Mode Preview).', 'success');
+          } else {
+            state.employees.push({
+              id: 'doc-emp-' + Date.now(),
+              empId,
+              name,
+              department,
+              password,
+              status
+            });
+            showToast('Karyawan baru ditambahkan (Mode Preview).', 'success');
+          }
+          closeModal();
+          renderApp();
+        } else {
+          try {
+            if (emp) {
+              await updateDoc(doc(db, 'employees', emp.id), { name, department, password, status });
+              Object.assign(emp, { name, department, password, status });
+              showToast('Data karyawan berhasil diperbarui.', 'success');
+            } else {
+              const newDocRef = await addDoc(collection(db, 'employees'), {
+                empId,
+                name,
+                department,
+                password,
+                status,
+                createdAt: serverTimestamp()
+              });
+              state.employees.push({ id: newDocRef.id, empId, name, department, password, status });
+              showToast('Karyawan baru berhasil disimpan ke Firestore.', 'success');
+            }
+            closeModal();
+            renderApp();
+          } catch (err) {
+            showToast('Gagal menyimpan data karyawan: ' + err.message, 'error');
+          }
+        }
+      });
+    };
+
+    window.confirmDeleteEmployee = function (docId, empName) {
+      openModal(`
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="trash-2" class="w-6 h-6"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-800 mb-1">Hapus Karyawan?</h3>
+          <p class="text-sm text-slate-500 mb-5">Anda yakin ingin menghapus data <strong>${empName}</strong>? Tindakan ini tidak dapat dibatalkan.</p>
+          <div class="flex justify-center gap-3">
+            <button onclick="closeModal()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Batal</button>
+            <button id="btn-confirm-del" class="px-5 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white">Ya, Hapus</button>
+          </div>
+        </div>
+      `);
+
+      document.getElementById('btn-confirm-del').onclick = async () => {
+        if (IS_PREVIEW) {
+          state.employees = state.employees.filter(e => e.id !== docId);
+          showToast('Data karyawan dihapus (Mode Preview).', 'info');
+          closeModal();
+          renderApp();
+        } else {
+          try {
+            await deleteDoc(doc(db, 'employees', docId));
+            state.employees = state.employees.filter(e => e.id !== docId);
+            showToast('Data karyawan dihapus dari Firestore.', 'success');
+            closeModal();
+            renderApp();
+          } catch (err) {
+            showToast('Gagal menghapus karyawan: ' + err.message, 'error');
+          }
+        }
+      };
+    };
+
+    window.showQrModal = function (title, subtitle, qrValue) {
+      openModal(`
+        <div class="text-center">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">QR Code Resmi</span>
+            <button onclick="closeModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <h3 class="text-lg font-bold text-slate-800">${title}</h3>
+          <p class="text-xs text-slate-500 mb-4">${subtitle}</p>
+          <div class="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 inline-flex flex-col items-center justify-center mb-4">
+            <div id="modal-qr-canvas" class="p-2 bg-white"></div>
+            <span class="mt-2 font-mono text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-md">${qrValue}</span>
+          </div>
+          <div class="flex justify-center gap-2">
+            <button onclick="downloadModalQr('${qrValue}')" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold flex items-center justify-center gap-2">
+              <i data-lucide="download" class="w-4 h-4"></i> Unduh Gambar QR
+            </button>
+          </div>
+        </div>
+      `);
+
+      setTimeout(() => {
+        const container = document.getElementById('modal-qr-canvas');
+        if (container && window.QRCode) {
+          container.innerHTML = '';
+          new QRCode(container, {
+            text: qrValue,
+            width: 190,
+            height: 190,
+            colorDark: "#0f172a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+          });
+        }
+      }, 50);
+    };
+
+    window.downloadModalQr = function (filename) {
+      const canvas = document.querySelector('#modal-qr-canvas canvas');
+      if (!canvas) {
+        showToast('QR Code belum siap diunduh.', 'warning');
+        return;
+      }
+      const link = document.createElement('a');
+      link.download = `QR-${filename}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    window.exportAttendancesCsv = function () {
+      const filtered = getFilteredAttendances();
+      if (filtered.length === 0) {
+        showToast('Tidak ada data absensi untuk diekspor.', 'warning');
+        return;
+      }
+      const headers = ['Tanggal', 'ID Karyawan', 'Nama Karyawan', 'Divisi', 'Jam Masuk', 'Jam Pulang', 'Durasi', 'Status'];
+      const rows = filtered.map(a => [
+        a.date,
+        a.empId,
+        `"${a.empName}"`,
+        `"${a.department}"`,
+        a.clockIn,
+        a.clockOut,
+        calculateDuration(a.clockIn, a.clockOut),
+        a.status
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan-Absensi-${state.filterDate || 'Semua'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Laporan CSV berhasil diunduh.', 'success');
+    };
+
+    function getFilteredAttendances() {
+      return state.attendances.filter(a => {
+        const matchDate = state.filterDate ? a.date === state.filterDate : true;
+        const q = state.filterSearch.toLowerCase();
+        const matchSearch = !q || a.empName.toLowerCase().includes(q) || a.empId.toLowerCase().includes(q) || a.department.toLowerCase().includes(q);
+        return matchDate && matchSearch;
+      });
+    }
+
+    // =========================================================================
+    // RENDER HALAMAN LOGIN
+    // =========================================================================
+    function renderLoginView() {
+      const isEmp = state.loginTab === 'employee';
+      return `
+        <div class="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-white via-slate-50 to-blue-50/60">
+          ${IS_PREVIEW ? `
+            <div class="max-w-md w-full mb-4 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5 shadow-sm">
+              <i data-lucide="flask-conical" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+              <div>
+                <p class="font-bold">Mode Preview Aktif (Simulasi In-Memory)</p>
+                <p class="mt-0.5">Demo Karyawan: ID <strong>EMP-001</strong> / PIN <strong>123</strong> | Demo Admin: Email & password bebas.</p>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="glass-panel max-w-md w-full rounded-3xl p-6 sm:p-8 shadow-xl">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/25">
+                <i data-lucide="qr-code" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">SmartAttend QR</h1>
+                <p class="text-xs text-slate-500 font-medium">Sistem Absensi Karyawan Berbasis Kamera</p>
+              </div>
+            </div>
+
+            <!-- Role Switcher Tabs -->
+            <div class="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl mb-6">
+              <button type="button" onclick="switchLoginTab('employee')" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${isEmp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}">
+                <i data-lucide="user-check" class="w-4 h-4"></i> Karyawan
+              </button>
+              <button type="button" onclick="switchLoginTab('admin')" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${!isEmp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Admin / HRD
+              </button>
+            </div>
+
+            ${isEmp ? `
+              <form id="login-employee-form" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">ID Karyawan (NIP)</label>
+                  <div class="relative">
+                    <i data-lucide="badge-check" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="text" id="login-emp-id" required placeholder="Masukkan ID Karyawan" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white/90 focus:ring-2 focus:ring-blue-500 outline-none text-sm uppercase font-medium" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Password / PIN</label>
+                  <div class="relative">
+                    <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="password" id="login-emp-pass" required placeholder="Masukkan PIN / Password" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white/90 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                </div>
+                <button type="submit" ${state.loading ? 'disabled' : ''} class="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all flex items-center justify-center gap-2">
+                  ${state.loading ? 'Memverifikasi...' : '<i data-lucide="log-in" class="w-4 h-4"></i> Masuk ke Portal Absensi'}
+                </button>
+              </form>
+            ` : `
+              <form id="login-admin-form" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email Administrator</label>
+                  <div class="relative">
+                    <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="email" id="login-admin-email" required placeholder="admin@perusahaan.com" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white/90 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Password</label>
+                  <div class="relative">
+                    <i data-lucide="key-round" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="password" id="login-admin-pass" required placeholder="••••••••" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white/90 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                </div>
+                <button type="submit" ${state.loading ? 'disabled' : ''} class="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm shadow-lg transition-all flex items-center justify-center gap-2">
+                  ${state.loading ? 'Memproses...' : '<i data-lucide="shield" class="w-4 h-4"></i> Masuk Sebagai Admin'}
+                </button>
+              </form>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // RENDER NAVIGASI (SIDEBAR DESKTOP & BOTTOM BAR MOBILE)
+    // =========================================================================
+    function getMenuItems() {
+      if (state.currentUser?.role === 'admin') {
+        return [
+          { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+          { id: 'employees', label: 'Karyawan & QR', icon: 'users' },
+          { id: 'reports', label: 'Laporan Absensi', icon: 'file-spreadsheet' },
+          { id: 'settings', label: 'Pengaturan', icon: 'settings' }
+        ];
+      }
+      return [
+        { id: 'scan', label: 'Scan Absensi', icon: 'scan-line' },
+        { id: 'history', label: 'Riwayat Saya', icon: 'history' },
+        { id: 'profile', label: 'ID Digital', icon: 'id-card' }
+      ];
+    }
+
+    function renderNavigation() {
+      const menus = getMenuItems();
+      const user = state.currentUser;
+
+      const sidebarHtml = `
+        <aside class="desktop-sidebar glass-nav border-r p-5 justify-between">
+          <div>
+            <div class="flex items-center gap-3 px-2 mb-8">
+              <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                <i data-lucide="qr-code" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h2 class="font-extrabold text-slate-900 text-base leading-tight">SmartAttend</h2>
+                <span class="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">${user.role === 'admin' ? 'Panel Admin' : 'Portal Karyawan'}</span>
+              </div>
+            </div>
+
+            <nav class="space-y-1.5">
+              ${menus.map(m => `
+                <button onclick="navigateMenu('${m.id}')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${state.activeMenu === m.id ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'}">
+                  <i data-lucide="${m.icon}" class="w-4 h-4"></i>
+                  <span>${m.label}</span>
+                </button>
+              `).join('')}
+            </nav>
+          </div>
+
+          <div class="pt-4 border-t border-slate-200/80">
+            <div class="px-3 py-2.5 mb-2 rounded-xl bg-slate-50 border border-slate-200/60">
+              <p class="text-xs font-bold text-slate-800 truncate">${user.name}</p>
+              <p class="text-[11px] text-slate-500 truncate">${user.role === 'admin' ? user.email : `${user.empId} • ${user.department}`}</p>
+            </div>
+            <button onclick="logoutApp()" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all">
+              <i data-lucide="log-out" class="w-4 h-4"></i> Keluar Akun
+            </button>
+          </div>
+        </aside>
+      `;
+
+      const bottomNavHtml = `
+        <nav class="mobile-bottom-nav glass-nav border px-2 py-2 justify-around items-center">
+          ${menus.map(m => `
+            <button onclick="navigateMenu('${m.id}')" class="flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${state.activeMenu === m.id ? 'text-blue-600 bg-blue-50/90 font-bold' : 'text-slate-500 font-medium'}">
+              <i data-lucide="${m.icon}" class="w-5 h-5 mb-0.5"></i>
+              <span class="text-[10px]">${m.label}</span>
+            </button>
+          `).join('')}
+          <button onclick="logoutApp()" class="flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-rose-500 font-medium">
+            <i data-lucide="log-out" class="w-5 h-5 mb-0.5"></i>
+            <span class="text-[10px]">Keluar</span>
+          </button>
+        </nav>
+      `;
+
+      return sidebarHtml + bottomNavHtml;
+    }
+
+    // =========================================================================
+    // RENDER HALAMAN KARYAWAN
+    // =========================================================================
+    function renderEmployeeScanView() {
+      const today = getTodayDateString();
+      const todayRecord = state.attendances.find(
+        a => a.empId === state.currentUser.empId && a.date === today
+      );
+
+      return `
+        <div class="max-w-2xl mx-auto space-y-5">
+          <!-- Status Kehadiran Hari Ini -->
+          <div class="glass-panel rounded-3xl p-5 sm:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Status Hari Ini (${today})</p>
+                <h2 class="text-lg font-bold text-slate-800">Halo, ${state.currentUser.name}</h2>
+              </div>
+              <span class="px-3 py-1 rounded-full text-xs font-bold ${todayRecord ? (todayRecord.status === 'Terlambat' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') : 'bg-slate-100 text-slate-600'}">
+                ${todayRecord ? todayRecord.status : 'Belum Absen'}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <span class="text-[11px] font-semibold text-slate-400 uppercase">Jam Masuk</span>
+                <p class="text-lg font-extrabold text-slate-800 mt-0.5">${todayRecord ? todayRecord.clockIn : '--:--:--'}</p>
+                <span class="text-[11px] text-slate-500">Jadwal: ${state.settings.startTime}</span>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <span class="text-[11px] font-semibold text-slate-400 uppercase">Jam Pulang</span>
+                <p class="text-lg font-extrabold text-slate-800 mt-0.5">${todayRecord && todayRecord.clockOut !== '-' ? todayRecord.clockOut : '--:--:--'}</p>
+                <span class="text-[11px] text-slate-500">Jadwal: ${state.settings.endTime}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kamera Scanner Card -->
+          <div class="glass-panel rounded-3xl p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="camera" class="w-5 h-5 text-blue-600"></i> Pemindai QR Absensi
+              </h3>
+              <span class="text-xs font-medium text-slate-500">Arahkan kamera ke QR Kantor</span>
+            </div>
+
+            <!-- Pilih Mode Absen Masuk / Pulang -->
+            <div class="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-4">
+              <button onclick="setScanMode('in')" class="py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${state.scanMode === 'in' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+                <i data-lucide="log-in" class="w-4 h-4"></i> Absen Masuk
+              </button>
+              <button onclick="setScanMode('out')" class="py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${state.scanMode === 'out' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Absen Pulang
+              </button>
+            </div>
+
+            <!-- Viewport Kamera -->
+            <div class="relative bg-slate-900 rounded-2xl overflow-hidden min-h-[270px] flex flex-col items-center justify-center border border-slate-200">
+              <div id="qr-reader" class="w-full"></div>
+              ${!state.isScanning ? `
+                <div class="p-6 text-center text-slate-300">
+                  <div class="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="scan" class="w-7 h-7 text-blue-400"></i>
+                  </div>
+                  <p class="text-sm font-semibold text-white">Kamera Siap Digunakan</p>
+                  <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Tekan tombol di bawah untuk mengaktifkan kamera dan memindai QR Code lokasi kerja.</p>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Tombol Kontrol Kamera -->
+            <div class="mt-4 flex flex-col sm:flex-row gap-2.5">
+              <button id="btn-start-scan" onclick="triggerStartCamera()" class="${state.isScanning ? 'hidden' : ''} flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
+                <i data-lucide="camera" class="w-4 h-4"></i> Aktifkan Kamera Scan
+              </button>
+              <button id="btn-stop-scan" onclick="triggerStopCamera()" class="${!state.isScanning ? 'hidden' : ''} flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm flex items-center justify-center gap-2">
+                <i data-lucide="camera-off" class="w-4 h-4"></i> Matikan Kamera
+              </button>
+              ${IS_PREVIEW ? `
+                <button onclick="simulateQrScan()" class="py-3 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                  <i data-lucide="zap" class="w-4 h-4"></i> Simulasi Scan QR Kantor
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEmployeeHistoryView() {
+      const myLogs = state.attendances
+        .filter(a => a.empId === state.currentUser.empId && (!state.historyMonth || a.date.startsWith(state.historyMonth)))
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      return `
+        <div class="max-w-4xl mx-auto space-y-5">
+          <div class="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">Riwayat Kehadiran Saya</h2>
+              <p class="text-xs text-slate-500">Rekap log absensi masuk, pulang, dan durasi kerja Anda.</p>
+            </div>
+            <div>
+              <input type="month" value="${state.historyMonth}" onchange="updateHistoryMonth(this.value)" class="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div class="glass-panel rounded-3xl overflow-hidden">
+            ${myLogs.length === 0 ? `
+              <div class="p-10 text-center">
+                <i data-lucide="calendar-x" class="w-10 h-10 text-slate-300 mx-auto mb-2"></i>
+                <p class="text-sm font-semibold text-slate-600">Belum ada riwayat absensi</p>
+                <p class="text-xs text-slate-400 mt-1">Catatan absensi Anda pada bulan terpilih akan muncul di sini.</p>
+              </div>
+            ` : `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold uppercase text-slate-500">
+                      <th class="py-3.5 px-4">Tanggal</th>
+                      <th class="py-3.5 px-4">Masuk</th>
+                      <th class="py-3.5 px-4">Pulang</th>
+                      <th class="py-3.5 px-4">Durasi</th>
+                      <th class="py-3.5 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 text-sm">
+                    ${myLogs.map(log => `
+                      <tr class="hover:bg-slate-50/60">
+                        <td class="py-3.5 px-4 font-semibold text-slate-800">${log.date}</td>
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-700">${log.clockIn}</td>
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-700">${log.clockOut}</td>
+                        <td class="py-3.5 px-4 text-xs text-slate-500">${calculateDuration(log.clockIn, log.clockOut)}</td>
+                        <td class="py-3.5 px-4">
+                          <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${log.status === 'Terlambat' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                            ${log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEmployeeProfileView() {
+      const u = state.currentUser;
+      return `
+        <div class="max-w-md mx-auto">
+          <div class="glass-panel rounded-3xl p-6 sm:p-8 text-center relative overflow-hidden">
+            <div class="w-16 h-16 rounded-2xl bg-blue-600 text-white font-extrabold text-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-600/20">
+              ${u.name.charAt(0).toUpperCase()}
+            </div>
+            <h2 class="text-xl font-extrabold text-slate-900">${u.name}</h2>
+            <p class="text-xs font-semibold text-blue-600 uppercase tracking-wider mt-0.5">${u.department}</p>
+
+            <div class="mt-6 p-5 rounded-2xl bg-white border-2 border-dashed border-slate-200 inline-flex flex-col items-center">
+              <div id="employee-id-qrcode" class="p-1"></div>
+              <span class="mt-3 font-mono text-xs font-bold text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">${u.empId}</span>
+            </div>
+
+            <p class="text-xs text-slate-400 mt-4">Tunjukkan Kartu ID Digital ini kepada Admin atau pemindai kios bila diperlukan.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // RENDER HALAMAN ADMIN
+    // =========================================================================
+    function renderAdminDashboardView() {
+      const today = getTodayDateString();
+      const activeEmployees = state.employees.filter(e => e.status === 'active');
+      const todayLogs = state.attendances.filter(a => a.date === today);
+      const onTimeCount = todayLogs.filter(a => a.status === 'Tepat Waktu').length;
+      const lateCount = todayLogs.filter(a => a.status === 'Terlambat').length;
+      const absentCount = Math.max(0, activeEmployees.length - todayLogs.length);
+
+      return `
+        <div class="max-w-6xl mx-auto space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-extrabold text-slate-900">Dashboard Kehadiran</h2>
+              <p class="text-xs text-slate-500">Ringkasan absensi karyawan hari ini (${today})</p>
+            </div>
+            <button onclick="showQrModal('QR Code Titik Absen Kantor', 'Tempelkan QR Code ini di pintu masuk kantor untuk dipindai karyawan', '${state.settings.officeQrCode}')" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
+              <i data-lucide="qr-code" class="w-4 h-4"></i> Tampilkan QR Kantor
+            </button>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-panel rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-500">Total Karyawan</span>
+                <span class="p-2 rounded-xl bg-blue-50 text-blue-600"><i data-lucide="users" class="w-4 h-4"></i></span>
+              </div>
+              <p class="text-2xl font-extrabold text-slate-900">${activeEmployees.length}</p>
+              <span class="text-[11px] text-slate-400">Akun aktif terdaftar</span>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-500">Tepat Waktu</span>
+                <span class="p-2 rounded-xl bg-emerald-50 text-emerald-600"><i data-lucide="check-circle-2" class="w-4 h-4"></i></span>
+              </div>
+              <p class="text-2xl font-extrabold text-emerald-600">${onTimeCount}</p>
+              <span class="text-[11px] text-slate-400">Masuk &le; ${state.settings.startTime}</span>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-500">Terlambat</span>
+                <span class="p-2 rounded-xl bg-amber-50 text-amber-600"><i data-lucide="clock" class="w-4 h-4"></i></span>
+              </div>
+              <p class="text-2xl font-extrabold text-amber-600">${lateCount}</p>
+              <span class="text-[11px] text-slate-400">Masuk &gt; ${state.settings.startTime}</span>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-500">Belum Absen</span>
+                <span class="p-2 rounded-xl bg-rose-50 text-rose-600"><i data-lucide="user-x" class="w-4 h-4"></i></span>
+              </div>
+              <p class="text-2xl font-extrabold text-rose-600">${absentCount}</p>
+              <span class="text-[11px] text-slate-400">Hari ini</span>
+            </div>
+          </div>
+
+          <!-- Log Terbaru Hari Ini -->
+          <div class="glass-panel rounded-3xl overflow-hidden">
+            <div class="p-5 border-b border-slate-200/80 flex items-center justify-between">
+              <h3 class="font-bold text-slate-800 text-sm sm:text-base">Aktivitas Scan Hari Ini</h3>
+              <button onclick="navigateMenu('reports')" class="text-xs font-semibold text-blue-600 hover:underline">Lihat Semua Laporan &rarr;</button>
+            </div>
+            ${todayLogs.length === 0 ? `
+              <div class="p-10 text-center">
+                <p class="text-sm font-semibold text-slate-600">Belum ada aktivitas absensi hari ini</p>
+                <p class="text-xs text-slate-400 mt-1">Data scan karyawan akan tampil secara otomatis di sini.</p>
+              </div>
+            ` : `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold uppercase text-slate-500">
+                      <th class="py-3 px-4">Karyawan</th>
+                      <th class="py-3 px-4">Divisi</th>
+                      <th class="py-3 px-4">Masuk</th>
+                      <th class="py-3 px-4">Pulang</th>
+                      <th class="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 text-sm">
+                    ${todayLogs.map(log => `
+                      <tr>
+                        <td class="py-3 px-4">
+                          <p class="font-semibold text-slate-800">${log.empName}</p>
+                          <p class="text-[11px] font-mono text-slate-400">${log.empId}</p>
+                        </td>
+                        <td class="py-3 px-4 text-xs text-slate-600">${log.department}</td>
+                        <td class="py-3 px-4 font-mono text-xs text-slate-700">${log.clockIn}</td>
+                        <td class="py-3 px-4 font-mono text-xs text-slate-700">${log.clockOut}</td>
+                        <td class="py-3 px-4">
+                          <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${log.status === 'Terlambat' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                            ${log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminEmployeesView() {
+      return `
+        <div class="max-w-6xl mx-auto space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-extrabold text-slate-900">Data Karyawan & Generator QR</h2>
+              <p class="text-xs text-slate-500">Kelola akun login karyawan dan cetak kartu QR Code.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="showQrModal('QR Code Kantor', 'Gunakan QR ini sebagai titik scan utama di kantor', '${state.settings.officeQrCode}')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold flex items-center gap-2">
+                <i data-lucide="qr-code" class="w-4 h-4"></i> QR Kantor
+              </button>
+              <button onclick="openEmployeeFormModal()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md shadow-blue-600/20 flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Karyawan
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-panel rounded-3xl overflow-hidden">
+            ${state.employees.length === 0 ? `
+              <div class="p-12 text-center">
+                <i data-lucide="users" class="w-10 h-10 text-slate-300 mx-auto mb-2"></i>
+                <p class="text-sm font-semibold text-slate-600">Belum ada data karyawan</p>
+                <p class="text-xs text-slate-400 mt-1">Klik tombol "Tambah Karyawan" untuk mendaftarkan akun pertama.</p>
+              </div>
+            ` : `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold uppercase text-slate-500">
+                      <th class="py-3.5 px-4">ID Karyawan</th>
+                      <th class="py-3.5 px-4">Nama & Divisi</th>
+                      <th class="py-3.5 px-4">PIN / Password</th>
+                      <th class="py-3.5 px-4">Status</th>
+                      <th class="py-3.5 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 text-sm">
+                    ${state.employees.map(emp => `
+                      <tr class="hover:bg-slate-50/60">
+                        <td class="py-3.5 px-4 font-mono text-xs font-bold text-blue-600">${emp.empId}</td>
+                        <td class="py-3.5 px-4">
+                          <p class="font-semibold text-slate-800">${emp.name}</p>
+                          <p class="text-xs text-slate-500">${emp.department}</p>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-600">${emp.password}</td>
+                        <td class="py-3.5 px-4">
+                          <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${emp.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">
+                            ${emp.status === 'active' ? 'Aktif' : 'Non-Aktif'}
+                          </span>
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                          <div class="inline-flex items-center gap-1.5">
+                            <button onclick="showQrModal('${emp.name}', '${emp.department}', '${emp.empId}')" title="Lihat QR Code" class="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
+                              <i data-lucide="qr-code" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="openEmployeeFormModal('${emp.id}')" title="Edit" class="p-2 rounded-lg text-slate-600 hover:bg-slate-100">
+                              <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="confirmDeleteEmployee('${emp.id}', '${emp.name}')" title="Hapus" class="p-2 rounded-lg text-rose-600 hover:bg-rose-50">
+                              <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminReportsView() {
+      const filtered = getFilteredAttendances();
+
+      return `
+        <div class="max-w-6xl mx-auto space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-extrabold text-slate-900">Monitoring & Laporan Absensi</h2>
+              <p class="text-xs text-slate-500">Filter log kehadiran berdasarkan tanggal atau nama, dan ekspor ke CSV.</p>
+            </div>
+            <button onclick="exportAttendancesCsv()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
+              <i data-lucide="download" class="w-4 h-4"></i> Unduh CSV
+            </button>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="glass-panel rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Filter Tanggal</label>
+              <input type="date" value="${state.filterDate}" onchange="updateReportDate(this.value)" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Cari Karyawan / ID / Divisi</label>
+              <div class="flex gap-2">
+                <input type="text" value="${state.filterSearch}" oninput="updateReportSearch(this.value)" placeholder="Ketik nama atau ID karyawan..." class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+                ${state.filterDate ? `<button onclick="updateReportDate('')" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-600 shrink-0">Semua Tanggal</button>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-panel rounded-3xl overflow-hidden">
+            ${filtered.length === 0 ? `
+              <div class="p-12 text-center">
+                <i data-lucide="file-search" class="w-10 h-10 text-slate-300 mx-auto mb-2"></i>
+                <p class="text-sm font-semibold text-slate-600">Tidak ada data absensi ditemukan</p>
+                <p class="text-xs text-slate-400 mt-1">Coba ubah filter tanggal atau kata kunci pencarian.</p>
+              </div>
+            ` : `
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold uppercase text-slate-500">
+                      <th class="py-3.5 px-4">Tanggal</th>
+                      <th class="py-3.5 px-4">Karyawan</th>
+                      <th class="py-3.5 px-4">Masuk</th>
+                      <th class="py-3.5 px-4">Pulang</th>
+                      <th class="py-3.5 px-4">Durasi</th>
+                      <th class="py-3.5 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 text-sm">
+                    ${filtered.map(a => `
+                      <tr class="hover:bg-slate-50/60">
+                        <td class="py-3.5 px-4 text-xs font-semibold text-slate-700">${a.date}</td>
+                        <td class="py-3.5 px-4">
+                          <p class="font-semibold text-slate-800">${a.empName}</p>
+                          <p class="text-[11px] text-slate-400">${a.empId} • ${a.department}</p>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-700">${a.clockIn}</td>
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-700">${a.clockOut}</td>
+                        <td class="py-3.5 px-4 text-xs text-slate-500">${calculateDuration(a.clockIn, a.clockOut)}</td>
+                        <td class="py-3.5 px-4">
+                          <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${a.status === 'Terlambat' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                            ${a.status}
+                          </span>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminSettingsView() {
+      return `
+        <div class="max-w-xl mx-auto">
+          <div class="glass-panel rounded-3xl p-6 sm:p-8">
+            <h2 class="text-xl font-extrabold text-slate-900 mb-1">Pengaturan Jam Kerja & QR Kantor</h2>
+            <p class="text-xs text-slate-500 mb-6">Atur batas keterlambatan dan token QR resmi yang dipindai karyawan.</p>
+
+            <form id="settings-form" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase mb-1.5">Jam Masuk Wajib</label>
+                  <input type="time" id="set-start-time" required value="${state.settings.startTime}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 uppercase mb-1.5">Jam Pulang Wajib</label>
+                  <input type="time" id="set-end-time" required value="${state.settings.endTime}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 uppercase mb-1.5">Token QR Resmi Kantor</label>
+                <div class="flex gap-2">
+                  <input type="text" id="set-office-qr" required value="${state.settings.officeQrCode}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-mono text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" />
+                  <button type="button" onclick="generateRandomOfficeToken()" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 shrink-0">Acak Token</button>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Jika diubah, cetak ulang QR Kantor agar sesuai dengan token terbaru.</p>
+              </div>
+
+              <div class="pt-3">
+                <button type="submit" class="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-600/20">
+                  Simpan Pengaturan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // MAIN RENDER CONTROLLER
+    // =========================================================================
+    function renderApp() {
+      const root = document.getElementById('app-container');
+      if (!root) return;
+
+      if (!state.currentUser) {
+        root.innerHTML = renderLoginView();
+        bindLoginEvents();
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      let contentHtml = '';
+      if (state.currentUser.role === 'employee') {
+        if (state.activeMenu === 'scan') contentHtml = renderEmployeeScanView();
+        else if (state.activeMenu === 'history') contentHtml = renderEmployeeHistoryView();
+        else if (state.activeMenu === 'profile') contentHtml = renderEmployeeProfileView();
+      } else {
+        if (state.activeMenu === 'dashboard') contentHtml = renderAdminDashboardView();
+        else if (state.activeMenu === 'employees') contentHtml = renderAdminEmployeesView();
+        else if (state.activeMenu === 'reports') contentHtml = renderAdminReportsView();
+        else if (state.activeMenu === 'settings') contentHtml = renderAdminSettingsView();
+      }
+
+      root.innerHTML = `
+        ${renderNavigation()}
+        <main class="main-workspace min-h-screen p-4 sm:p-8">
+          ${IS_PREVIEW ? `
+            <div class="max-w-6xl mx-auto mb-5 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-800 text-xs flex items-center justify-between gap-2">
+              <span class="flex items-center gap-2 font-medium">
+                <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0"></i>
+                Mode Preview In-Memory aktif. Data tidak disimpan ke Firebase.
+              </span>
+              <span class="font-mono font-bold text-[11px] bg-amber-100 px-2 py-0.5 rounded">IS_PREVIEW = true</span>
+            </div>
+          ` : ''}
+
+          ${state.loading ? `
+            <div class="flex flex-col items-center justify-center py-20 text-slate-500">
+              <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <p class="text-sm font-medium">Menghubungkan ke database...</p>
+            </div>
+          ` : contentHtml}
+        </main>
+      `;
+
+      bindDynamicEvents();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function bindLoginEvents() {
+      const empForm = document.getElementById('login-employee-form');
+      if (empForm) {
+        empForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const idVal = document.getElementById('login-emp-id').value;
+          const passVal = document.getElementById('login-emp-pass').value;
+          handleEmployeeLogin(idVal, passVal);
+        });
+      }
+
+      const adminForm = document.getElementById('login-admin-form');
+      if (adminForm) {
+        adminForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const emailVal = document.getElementById('login-admin-email').value;
+          const passVal = document.getElementById('login-admin-pass').value;
+          handleAdminLogin(emailVal, passVal);
+        });
+      }
+    }
+
+    function bindDynamicEvents() {
+      // Render QR Code Pribadi pada tab Profil Karyawan
+      if (state.currentUser?.role === 'employee' && state.activeMenu === 'profile') {
+        const qrBox = document.getElementById('employee-id-qrcode');
+        if (qrBox && window.QRCode) {
+          qrBox.innerHTML = '';
+          new QRCode(qrBox, {
+            text: state.currentUser.empId,
+            width: 170,
+            height: 170,
+            colorDark: "#0f172a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+          });
+        }
+      }
+
+      // Bind Settings Form (Admin)
+      const settingsForm = document.getElementById('settings-form');
+      if (settingsForm) {
+        settingsForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const startTime = document.getElementById('set-start-time').value;
+          const endTime = document.getElementById('set-end-time').value;
+          const officeQrCode = document.getElementById('set-office-qr').value.trim();
+
+          if (!officeQrCode) {
+            showToast('Token QR Kantor tidak boleh kosong.', 'warning');
+            return;
+          }
+
+          if (IS_PREVIEW) {
+            state.settings = { startTime, endTime, officeQrCode };
+            showToast('Pengaturan berhasil diperbarui (Mode Preview).', 'success');
+          } else {
+            try {
+              await setDoc(doc(db, 'settings', 'work_schedule'), {
+                startTime,
+                endTime,
+                officeQrCode
+              }, { merge: true });
+              state.settings = { startTime, endTime, officeQrCode };
+              showToast('Pengaturan jam kerja & QR Kantor tersimpan di Firestore.', 'success');
+            } catch (err) {
+              showToast('Gagal menyimpan pengaturan: ' + err.message, 'error');
+            }
+          }
+        });
+      }
+    }
+
+    // =========================================================================
+    // GLOBAL WINDOW HANDLERS UNTUK INLINE ONCLICK
+    // =========================================================================
+    window.switchLoginTab = function (tab) {
+      state.loginTab = tab;
+      renderApp();
+    };
+
+    window.navigateMenu = async function (menuId) {
+      if (state.isScanning) {
+        await stopCameraScanner();
+      }
+      state.activeMenu = menuId;
+      renderApp();
+    };
+
+    window.logoutApp = function () {
+      handleLogout();
+    };
+
+    window.setScanMode = function (mode) {
+      state.scanMode = mode;
+      renderApp();
+    };
+
+    window.triggerStartCamera = function () {
+      startCameraScanner();
+    };
+
+    window.triggerStopCamera = async function () {
+      await stopCameraScanner();
+      updateScannerButtons();
+      renderApp();
+    };
+
+    window.simulateQrScan = function () {
+      processQrScanResult(state.settings.officeQrCode);
+    };
+
+    window.updateHistoryMonth = function (val) {
+      state.historyMonth = val;
+      renderApp();
+    };
+
+    window.updateReportDate = function (val) {
+      state.filterDate = val;
+      renderApp();
+    };
+
+    window.updateReportSearch = function (val) {
+      state.filterSearch = val;
+      renderApp();
+    };
+
+    window.generateRandomOfficeToken = function () {
+      const rand = 'OFFICE-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const input = document.getElementById('set-office-qr');
+      if (input) input.value = rand;
+    };
+
+    // Start Initial Render
+    renderApp();
+  </script>
+</body>
+</html>
